@@ -31,10 +31,10 @@ app.add_middleware(
 )
 
 # 挂载静态文件目录
-frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
-if os.path.exists(frontend_path):
-    app.mount("/static", StaticFiles(directory=frontend_path), name="static")
-    logger.info(f"已挂载静态文件目录: {frontend_path}")
+# frontend_path = FRONTEND_DIR
+if os.path.exists(FRONTEND_DIR):
+    app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+    logger.info(f"已挂载静态文件目录: {FRONTEND_DIR}")
 
 # 全局变量
 influx_manager = InfluxDBManager()

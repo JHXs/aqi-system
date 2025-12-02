@@ -9,9 +9,10 @@ import os
 import webbrowser
 import threading
 import time
+from app.config import FRONTEND_DIR
 
 PORT = 8080
-DIRECTORY = "frontend"
+DIRECTORY = FRONTEND_DIR
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -19,7 +20,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 def start_server():
     """启动HTTP服务器"""
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     with socketserver.TCPServer(("", PORT), Handler) as httpd:
         print(f"前端服务器启动在 http://localhost:{PORT}")
