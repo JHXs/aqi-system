@@ -1,0 +1,5 @@
+.spec-workflow/
+*.log
+.DS_Store
+data/
+__pycache__/
