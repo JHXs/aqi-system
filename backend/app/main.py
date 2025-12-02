@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from influx_client import InfluxDBManager
-from config import ACCELERATION_FACTOR, BATCH_SIZE, MEASUREMENT_NAME
+from config import ACCELERATION_FACTOR, BATCH_SIZE, MEASUREMENT_NAME, FRONTEND_DIR
 import asyncio
 import json
 import logging
@@ -76,14 +76,8 @@ async def root():
 @app.get("/index.html")
 async def serve_frontend():
     """提供前端页面"""
-    # 获取当前文件的目录（app目录）
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    # 获取backend目录
-    backend_dir = os.path.dirname(current_dir)
-    # 获取项目根目录
-    project_root = os.path.dirname(backend_dir)
     # 获取frontend目录
-    frontend_path = os.path.join(project_root, "frontend", "index.html")
+    frontend_path = os.path.join(FRONTEND_DIR, "index.html")
 
     logger.info(f"尝试加载前端文件: {frontend_path}")
 

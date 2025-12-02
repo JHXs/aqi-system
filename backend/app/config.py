@@ -1,4 +1,12 @@
+import os
+from pathlib import Path
+
 # Air Quality Forecasting Platform Configuration
+
+# 项目目录配置
+PROJECT_DIR = Path(__file__).resolve().parent.parent.parent
+BACKEND_DIR = PROJECT_DIR / "backend"
+FRONTEND_DIR = PROJECT_DIR / "frontend"
 
 # InfluxDB 配置
 INFLUXDB_URL = "http://localhost:8086"
