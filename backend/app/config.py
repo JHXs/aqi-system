@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 # Air Quality Forecasting Platform Configuration

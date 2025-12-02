@@ -97,9 +97,11 @@ forcasting-system/
 ├── data/                     # 数据目录
 │   ├── hezhou_air_data/     # 贺州空气质量数据
 │   ├── microsoft_urban_air_data/  # Microsoft 城市空气质量数据
-│   └── stations_data/       # 站点空气质量数据
+│   └── stations_data/       # 北京站点空气质量数据
+│   └── stations_data_gz/    # 广州站点空气质量数据
 ├── doc/                      # 文档
-└── docker-compose.yml        # InfluxDB 配置
+└── scripts                  # 存储一些脚本或配置文件
+    └── influxdb-docker-compose.yml  # InfluxDB 配置       
 ```
 
 ## 🔧 配置说明

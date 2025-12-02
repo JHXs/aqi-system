@@ -1,6 +1,6 @@
-# Air Quality Real-time Streaming Platform
+# Air Quality Real-time Streaming Platform bakend
 
-空气质量实时数据流展示平台
+空气质量实时数据流展示平台后端
 
 ## 🚀 环境搭建完成
 
@@ -17,12 +17,6 @@ backend/
 ├── init_data.py               # 数据导入脚本
 ├── requirements.txt           # Python依赖
 └── README.md                  # 本文件
-
-frontend/
-└── (待创建)
-
-docker-compose.yml             # InfluxDB配置
-environment.yml                # Conda环境配置
 ```
 
 ## 📋 已完成的步骤
