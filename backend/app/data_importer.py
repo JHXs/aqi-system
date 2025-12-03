@@ -64,8 +64,7 @@ class DataImporter:
         # 标签列映射
         tag_mappings = {
             'station_id': ['station_id', 'stationid', 'station', 'id', '监测站编号'],
-            'city': ['city', 'city_name', '城市', '监测城市'],
-            'station_name': ['station_name', 'name', '站点名称', '监测站名称']
+            'city': ['city', 'city_name', '城市', '监测城市']
         }
 
         # 字段列映射
@@ -132,7 +131,7 @@ class DataImporter:
                 continue
 
             # 处理标签
-            for tag in ['station_id', 'city', 'station_name']:
+            for tag in ['station_id', 'city']:
                 col = column_mapping.get(tag)
                 if col and pd.notna(row[col]):
                     record[tag] = str(row[col])
@@ -142,8 +141,6 @@ class DataImporter:
                         record[tag] = 'default_station'
                     elif tag == 'city':
                         record[tag] = 'default_city'
-                    elif tag == 'station_name':
-                        record[tag] = 'default_station'
 
             # 处理字段
             for field in FIELDS:

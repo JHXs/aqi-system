@@ -79,18 +79,68 @@ class InfluxDBManager:
                     continue
 
             if points:
-                # 关闭批量写入以确保立即写入
+                # print(f"Writing: {[point.to_line_protocol() for point in points]}")
                 self.write_api.write(bucket=self.bucket, org=self.org, record=points)
-                logger.info(f"成功写入 {self.success_count} 条有效记录到 {measurement}")
+                logger.info(f"成功写入 {success_count} 条有效记录到 {measurement}")
             else:
                 logger.warning("没有有效的记录需要写入")
 
-            if self.fail_count > 0:
-                logger.warning(f"跳过 {self.fail_count} 条无效记录")
+            if fail_count > 0:
+                logger.warning(f"跳过 {fail_count} 条无效记录")
 
         except Exception as e:
             logger.error(f"写入数据失败: {e}")
             raise
+
+    def get_data(
+        self,
+        measurement_name: str = None,
+        start_time: str = "2014-04-30T00:00:00Z",
+        end_time: str = "now()",
+        station_id: str = None,
+        limit: int = None,
+        sort_desc: bool = False,
+        pivot_data: bool = False,
+    ):
+        """
+        通用数据查询方法，可以根据时间范围、站点、排序和限制条件获取数据。
+
+        Args:
+            measurement_name: 测量名称，如果为None则使用默认值。
+            start_time: 开始时间，如 "-1h", "-1d", "2024-01-01T00:00:00Z"。
+            end_time: 结束时间，如 "now()", "2024-01-01T23:59:59Z"。
+            station_id: 站点ID，如果为None则获取所有站点。
+            limit: 限制返回的记录数。
+            sort_desc: 是否按时间降序排序。
+            pivot_data: 是否将数据透视（字段转为列）。
+
+        Returns:
+            查询结果。
+        """
+        measurement = measurement_name or MEASUREMENT_NAME
+
+        # 使用 f-string 直接嵌入变量值
+        query_parts = [
+            f'from(bucket: "{self.bucket}")',
+            f'|> range(start: {start_time}, stop: {end_time})',
+            f'|> filter(fn: (r) => r._measurement == "{measurement}")'
+        ]
+
+        if station_id:
+            query_parts.append(f'|> filter(fn: (r) => r.station_id == "{station_id}")')
+
+        if sort_desc:
+            query_parts.append('|> sort(columns: ["_time"], desc: true)')
+
+        if limit:
+            query_parts.append(f'|> limit(n: {limit})')
+
+        if pivot_data:
+            query_parts.append('|> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")')
+
+        query = "\n".join(query_parts)
+
+        return self.query_data(query)  
 
     def query_data(self, query: str):
         """
@@ -103,67 +153,12 @@ class InfluxDBManager:
             查询结果
         """
         try:
+            # OSS 2.x 中 Flux 查询不需要 params 参数
             result = self.query_api.query(org=self.org, query=query)
             return result
         except Exception as e:
             logger.error(f"查询失败: {e}")
             raise
-
-    def get_latest_data(self, station_id: str = None, limit: int = 100, measurement_name: str = None):
-        """
-        获取最新数据
-
-        Args:
-            station_id: 站点ID，如果为None则获取所有站点
-            limit: 限制返回的记录数
-            measurement_name: 测量名称，如果为None则使用默认值
-
-        Returns:
-            查询结果
-        """
-        measurement = measurement_name or MEASUREMENT_NAME
-        query = f'''
-        from(bucket: "{self.bucket}")
-          |> range(start: -30d)
-          |> filter(fn: (r) => r._measurement == "{measurement}")
-        '''
-
-        if station_id:
-            query += f'  |> filter(fn: (r) => r.station_id == "{station_id}")'
-
-        query += f'''
-          |> sort(columns: ["_time"], desc: true)
-          |> limit(n: {limit})
-        '''
-
-        return self.query_data(query)
-
-    def get_data_by_time_range(self, start_time: str, end_time: str, station_id: str = None):
-        """
-        根据时间范围获取数据
-
-        Args:
-            start_time: 开始时间，如 "-1h", "-1d", "2024-01-01T00:00:00Z"
-            end_time: 结束时间，如 "now()", "2024-01-01T23:59:59Z"
-            station_id: 站点ID
-
-        Returns:
-            查询结果
-        """
-        query = f'''
-        from(bucket: "{self.bucket}")
-          |> range(start: {start_time}, stop: {end_time})
-          |> filter(fn: (r) => r._measurement == "{MEASUREMENT_NAME}")
-        '''
-
-        if station_id:
-            query += f'  |> filter(fn: (r) => r.station_id == "{station_id}")'
-
-        query += '''
-          |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
-        '''
-
-        return self.query_data(query)
 
     def close(self):
         """关闭连接"""

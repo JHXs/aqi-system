@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from influx_client import InfluxDBManager
-from config import ACCELERATION_FACTOR, BATCH_SIZE, MEASUREMENT_NAME, FRONTEND_DIR
+from config import ACCELERATION_FACTOR, BATCH_SIZE, FRONTEND_DIR, INFLUXDB_BUCKET, INFLUXDB_ORG, INFLUXDB_TOKEN, INFLUXDB_URL
 import asyncio
 import json
 import logging
@@ -37,7 +37,12 @@ if os.path.exists(FRONTEND_DIR):
     logger.info(f"已挂载静态文件目录: {FRONTEND_DIR}")
 
 # 全局变量
-influx_manager = InfluxDBManager()
+influx_manager = InfluxDBManager(
+    influx_url=INFLUXDB_URL,
+    influx_bucket=INFLUXDB_BUCKET,
+    influx_org=INFLUXDB_ORG,
+    influx_token=INFLUXDB_TOKEN
+)
 data_cache = []
 current_index = 0
 is_playing = False
@@ -107,7 +112,9 @@ async def get_status():
 async def get_latest_data(limit: int = 100):
     """获取最新的空气质量数据"""
     try:
-        result = influx_manager.get_latest_data(limit=limit)
+        # 由于数据是2014-2015年的历史数据，查询较早的时间范围
+        # 查询最近的历史数据并限制返回数量，然后使用pivot将字段转为列
+        result = influx_manager.get_data(start_time="2014-01-01T00:00:00Z", limit=limit, sort_desc=True, pivot_data=True)
         return {"data": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -117,7 +124,8 @@ async def get_latest_data(limit: int = 100):
 async def get_history_data(start: str, end: str = "now()", station_id: str = None):
     """获取历史数据"""
     try:
-        result = influx_manager.get_data_by_time_range(start, end, station_id)
+        # The original get_data_by_time_range did pivot the data
+        result = influx_manager.get_data(start_time=start, end_time=end, station_id=station_id, pivot_data=True)
         return {"data": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -221,8 +229,9 @@ async def load_data_cache():
 
     try:
         logger.info("正在加载数据到缓存...")
-        # 获取最近30天的数据
-        result = influx_manager.get_latest_data(limit=10000)
+        # 获取最近的数据，format_query_result 需要未透视的数据
+        # 对于历史数据，需要指定足够早的开始时间
+        result = influx_manager.get_data(start_time="2014-01-01T00:00:00Z", limit=10000, sort_desc=False)  # 使用升序，以便按时间顺序播放
         data_cache = format_query_result(result)
         current_index = 0
         logger.info(f"成功加载 {len(data_cache)} 条数据到缓存")
@@ -241,18 +250,17 @@ def format_query_result(result) -> List[Dict[str, Any]]:
 
         for table in result:
             for record in table.records:
+
                 timestamp = record.get_time().isoformat()
-                station_id = record.get_tag("station_id") or "unknown"
-                city = record.get_tag("city") or "unknown"
-                station_name = record.get_tag("station_name") or "unknown"
+                station_id = record.values.get("station_id") or "unknown"
+                city = record.values.get("city") or "unknown"
 
                 key = (timestamp, station_id)
                 if key not in data_by_timestamp:
                     data_by_timestamp[key] = {
                         "timestamp": timestamp,
                         "station_id": station_id,
-                        "city": city,
-                        "station_name": station_name
+                        "city": city
                     }
 
                 # 添加字段值

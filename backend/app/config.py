@@ -11,7 +11,7 @@ FRONTEND_DIR = PROJECT_DIR / "frontend"
 INFLUXDB_URL = "http://localhost:8086"
 INFLUXDB_TOKEN = "super-secret-token-for-air-quality-platform"
 INFLUXDB_ORG = "air-quality-org"
-INFLUXDB_BUCKET = "air-quality-bucket"
+INFLUXDB_BUCKET = "air_quality_hourly"
 
 # FastAPI 配置
 HOST = "0.0.0.0"
@@ -25,7 +25,7 @@ BATCH_SIZE = 1  # 每次推送的数据条数
 # 数据字段配置
 MEASUREMENT_NAME = "air_quality"
 TAGS = ["station_id", "city", "station_name"]
-FIELDS = ["pm25", "pm10", "co2", "so2", "no2", "o3", "aqi", "weather", "temperature", "humidity", "pressure", "wind_speed", "wind_direction"]
+FIELDS = ["pm25", "pm10", "co2", "so2", "no2", "o3", "co", "weather", "temperature", "humidity", "pressure", "wind_speed", "wind_direction"]
 TIME_COLUMN = "timestamp"
 
 # 日志配置
