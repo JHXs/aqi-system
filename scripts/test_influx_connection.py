@@ -10,7 +10,7 @@ import os
 # Add project path to sys.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from app.config import (
+from backend.app.config import (
     INFLUXDB_URL,
     INFLUXDB_TOKEN,
     INFLUXDB_ORG,

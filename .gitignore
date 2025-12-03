@@ -3,3 +3,4 @@
 .DS_Store
 data/
 __pycache__/
+src/forcasting_system.egg-info

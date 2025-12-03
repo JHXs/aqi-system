@@ -3,8 +3,8 @@ import os
 from datetime import datetime
 import logging
 from typing import Dict, Any, List
-from app.influx_client import InfluxDBManager
-from config import INFLUXDB_URL, INFLUXDB_TOKEN, INFLUXDB_ORG, INFLUXDB_BUCKET, MEASUREMENT_NAME, TAGS, FIELDS, PROJECT_DIR
+from backend.app.influx_client import InfluxDBManager
+from backend.app.config import INFLUXDB_URL, INFLUXDB_TOKEN, INFLUXDB_ORG, INFLUXDB_BUCKET, MEASUREMENT_NAME, TAGS, FIELDS, PROJECT_DIR
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)

@@ -1,0 +1,8 @@
+[project]
+name = "forcasting-system"
+version = "0.1.0"
+
+# 让 Python 正确识别 src 目录
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["backend"]

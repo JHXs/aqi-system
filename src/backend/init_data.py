@@ -4,9 +4,9 @@ Air Quality Platform - 数据导入脚本
 使用方法:
     python init_data.py
 """
-from app.data_importer import DataImporter
 import os
-from app.config import PROJECT_DIR
+from backend.app.data_importer import DataImporter
+from backend.app.config import PROJECT_DIR
 
 import logging
 logging.basicConfig(level=logging.INFO)
