@@ -109,6 +109,8 @@ forcasting-system/
 ### InfluxDB 配置
 
 - **URL**: `http://localhost:8086`
+- 用户名：`admin`
+- 密码：`air_quality_2024`
 - **Token**: `super-secret-token-for-air-quality-platform`
 - **组织**: `air-quality-org`
 - **Bucket**: `air-quality-bucket`

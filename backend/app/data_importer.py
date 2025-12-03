@@ -3,8 +3,8 @@ import os
 from datetime import datetime
 import logging
 from typing import Dict, Any, List
-from .influx_client import InfluxDBManager
-from .config import MEASUREMENT_NAME, TAGS, FIELDS
+from app.influx_client import InfluxDBManager
+from config import INFLUXDB_URL, INFLUXDB_TOKEN, INFLUXDB_ORG, INFLUXDB_BUCKET, MEASUREMENT_NAME, TAGS, FIELDS, PROJECT_DIR
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -13,7 +13,12 @@ logger = logging.getLogger(__name__)
 
 class DataImporter:
     def __init__(self):
-        self.influx_manager = InfluxDBManager()
+        self.influx_manager = InfluxDBManager(
+            influx_url=INFLUXDB_URL,
+            influx_token=INFLUXDB_TOKEN,
+            influx_org=INFLUXDB_ORG,
+            influx_bucket=INFLUXDB_BUCKET
+        )
 
     def clean_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -33,7 +38,7 @@ class DataImporter:
                 break
 
         # 转换数值列为float
-        numeric_columns = ['pm25', 'pm10', 'co2', 'so2', 'no2', 'o3', 'aqi',
+        numeric_columns = ['pm25', 'pm10', 'co2', 'so2', 'no2', 'o3', 'aqi', 'weather',
                           'temperature', 'humidity', 'pressure', 'wind_speed', 'wind_direction']
         for col in numeric_columns:
             if col in df.columns:
@@ -65,18 +70,19 @@ class DataImporter:
 
         # 字段列映射
         field_mappings = {
-            'pm25': ['pm25', 'pm2.5', 'pm_25', 'PM2.5', 'PM25'],
-            'pm10': ['pm10', 'pm_10', 'PM10', 'PM_10'],
-            'co2': ['co2', 'CO2', '二氧化碳'],
-            'so2': ['so2', 'SO2', '二氧化硫'],
-            'no2': ['no2', 'NO2', '二氧化氮'],
-            'o3': ['o3', 'O3', '臭氧'],
+            'pm25': ['pm25', 'pm2.5', 'pm_25', 'PM2.5', 'PM25', 'pm25_concentration', 'PM25_Concentration', 'pm2.5_concentration', 'PM25_Concentration'],
+            'pm10': ['pm10', 'pm_10', 'PM10', 'PM_10', 'pm10_concentration', 'PM10_Concentration'],
+            'co': ['co', 'CO', '一氧化碳', 'co_concentration', 'CO_Concentration'],
+            'so2': ['so2', 'SO2', '二氧化硫', 'so2_concentration', 'SO2_Concentration'],
+            'no2': ['no2', 'NO2', '二氧化氮', 'no2_concentration', 'NO2_Concentration'],
+            'o3': ['o3', 'O3', '臭氧', 'o3_concentration', 'O3_Concentration'],
             'aqi': ['aqi', 'AQI', '空气质量指数'],
-            'temperature': ['temperature', 'temp', 'temperature_c', '温度'],
-            'humidity': ['humidity', 'humidity_percent', '相对湿度'],
-            'pressure': ['pressure', 'atmospheric_pressure', '气压'],
-            'wind_speed': ['wind_speed', 'wind_speed_m_s', '风速'],
-            'wind_direction': ['wind_direction', 'wind_dir', '风向']
+            'weather': ['weather', 'weather_code', '天气', 'weather_condition'],
+            'temperature': ['temperature', 'temp', 'temperature_c', '温度', 'temperature_celsius'],
+            'humidity': ['humidity', 'humidity_percent', '相对湿度', 'humidity_percentage'],
+            'pressure': ['pressure', 'atmospheric_pressure', '气压', 'pressure_hpa'],
+            'wind_speed': ['wind_speed', 'wind_speed_m_s', '风速', 'wind_speed_kmh'],
+            'wind_direction': ['wind_direction', 'wind_dir', '风向', 'wind_direction_degrees']
         }
 
         # 检测时间列
@@ -165,6 +171,7 @@ class DataImporter:
             # 读取CSV
             df = pd.read_csv(file_path)
             logger.info(f"读取到 {len(df)} 行数据")
+            logger.info(f"列名: {list(df.columns)}")
 
             # 清洗数据
             df = self.clean_dataframe(df)
@@ -174,9 +181,20 @@ class DataImporter:
             column_mapping = self.detect_columns(df)
             logger.info(f"检测到的列映射: {column_mapping}")
 
+            # 检查是否有有效的时间列
+            time_col = column_mapping.get('time')
+            if not time_col:
+                logger.warning(f"未检测到有效的时间列，跳过文件: {file_path}")
+                return
+
             # 转换格式
             records = self.convert_to_standard_format(df, column_mapping)
             logger.info(f"转换为标准格式: {len(records)} 条记录")
+
+            # 检查是否有有效记录
+            if not records:
+                logger.warning(f"没有有效记录，跳过文件: {file_path}")
+                return
 
             # 写入InfluxDB
             self.influx_manager.write_data(records, measurement_name)
@@ -221,7 +239,7 @@ def main():
     # 导入不同数据集
     data_paths = [
         {
-            'path': '/home/hansel/Documents/ITProject/Python/forcasting-system/data/stations_data',
+            'path': f'{PROJECT_DIR}/data/stations_data',
             'measurement': 'BeiJing_stations_air_quality'
         }
     ]

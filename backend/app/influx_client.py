@@ -23,16 +23,12 @@ logger = logging.getLogger(__name__)
 
 
 class InfluxDBManager:
-    def __init__(self):
-        self.client = InfluxDBClient(
-            url=INFLUXDB_URL,
-            token=INFLUXDB_TOKEN,
-            org=INFLUXDB_ORG
-        )
+    def __init__(self, influx_url, influx_token, influx_org, influx_bucket):
+        self.client = InfluxDBClient(url=influx_url, token=influx_token, org=influx_org)
         self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
         self.query_api = self.client.query_api()
-        self.bucket = INFLUXDB_BUCKET
-        self.org = INFLUXDB_ORG
+        self.bucket = influx_bucket
+        self.org = influx_org
 
     def write_data(self, data: List[Dict[str, Any]], measurement_name: str = None):
         """
@@ -43,33 +39,54 @@ class InfluxDBManager:
             measurement_name: 测量名称
         """
         if not data:
+            logger.warning("没有数据需要写入")
             return
 
         measurement = measurement_name or MEASUREMENT_NAME
 
         try:
             points = []
-            for record in data:
-                point = Point(measurement)
+            success_count = 0
+            fail_count = 0
 
-                # 添加标签
-                for tag in TAGS:
-                    if tag in record and record[tag] is not None:
-                        point = point.tag(tag, str(record[tag]))
+            for i, record in enumerate(data):
+                try:
+                    point = Point(measurement)
 
-                # 添加字段
-                for field in FIELDS:
-                    if field in record and record[field] is not None:
-                        point = point.field(field, record[field])
+                    # 添加标签
+                    for tag in TAGS:
+                        if tag in record and record[tag] is not None:
+                            point = point.tag(tag, str(record[tag]))
 
-                # 添加时间戳
-                if TIME_COLUMN in record:
-                    point = point.time(record[TIME_COLUMN])
+                    # 添加字段
+                    for field in FIELDS:
+                        if field in record and record[field] is not None:
+                            point = point.field(field, record[field])
 
-                points.append(point)
+                    # 添加时间戳
+                    if TIME_COLUMN in record:
+                        point = point.time(record[TIME_COLUMN])
+                    else:
+                        logger.warning(f"记录 {i} 缺少时间戳: {record}")
+                        continue
 
-            self.write_api.write(bucket=self.bucket, org=self.org, record=points)
-            logger.info(f"成功写入 {len(points)} 条记录到 {measurement}")
+                    points.append(point)
+                    success_count += 1
+
+                except Exception as e:
+                    logger.warning(f"处理记录 {i} 时出错: {e}")
+                    fail_count += 1
+                    continue
+
+            if points:
+                # 关闭批量写入以确保立即写入
+                self.write_api.write(bucket=self.bucket, org=self.org, record=points)
+                logger.info(f"成功写入 {self.success_count} 条有效记录到 {measurement}")
+            else:
+                logger.warning("没有有效的记录需要写入")
+
+            if self.fail_count > 0:
+                logger.warning(f"跳过 {self.fail_count} 条无效记录")
 
         except Exception as e:
             logger.error(f"写入数据失败: {e}")
