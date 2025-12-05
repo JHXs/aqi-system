@@ -6,13 +6,13 @@ let isPlaying = false;
 // 图表实例
 let pm25Chart = null;
 let pm10Chart = null;
-let co2Chart = null;
+let coChart = null;
 
 // 数据缓存
 let timeData = [];
 let pm25Data = [];
 let pm10Data = [];
-let co2Data = [];
+let coData = [];
 let aqiData = [];
 let tempData = [];
 let humidityData = [];
@@ -159,11 +159,11 @@ function initCharts() {
         }]
     });
 
-    // CO2图表
-    co2Chart = echarts.init(document.getElementById('co2Chart'));
-    co2Chart.setOption({
+    // CO图表
+    coChart = echarts.init(document.getElementById('coChart'));
+    coChart.setOption({
         title: {
-            text: 'CO2 (ppm)',
+            text: 'CO (mg/m³)',  // 改为 CO (一氧化碳)
             left: 'center',
             textStyle: {
                 color: '#667eea'
@@ -190,7 +190,7 @@ function initCharts() {
         },
         yAxis: {
             type: 'value',
-            name: 'ppm',
+            name: 'mg/m³',  // 改为 mg/m³
             axisLine: {
                 lineStyle: {
                     color: '#667eea'
@@ -198,7 +198,7 @@ function initCharts() {
             }
         },
         series: [{
-            name: 'CO2',
+            name: 'CO',
             type: 'line',
             smooth: true,
             symbol: 'circle',
@@ -213,7 +213,7 @@ function initCharts() {
             areaStyle: {
                 color: 'rgba(69, 183, 209, 0.1)'
             },
-            data: co2Data
+            data: coData
         }]
     });
 }
@@ -242,7 +242,14 @@ function connectWebSocket() {
 
             socket.onmessage = function(event) {
                 const data = JSON.parse(event.data);
-                processData(data);
+                // 数据是数组格式，需要处理每个记录
+                if (data && Array.isArray(data)) {
+                    data.forEach(record => {
+                        processData(record);
+                    });
+                } else if (data) {
+                    processData(data);
+                }
             };
 
             socket.onclose = function() {
@@ -284,8 +291,8 @@ function processData(data) {
     timeData.push(formatTime(data.timestamp));
     pm25Data.push(data.pm25 || 0);
     pm10Data.push(data.pm10 || 0);
-    co2Data.push(data.co2 || 0);
-    aqiData.push(data.aqi || 0);
+    coData.push(data.co || 0);  // 使用 co 字段（一氧化碳）
+    aqiData.push(calculateAQI(data) || 0);  // 计算AQI
     tempData.push(data.temperature || 0);
     humidityData.push(data.humidity || 0);
 
@@ -294,7 +301,7 @@ function processData(data) {
         timeData.shift();
         pm25Data.shift();
         pm10Data.shift();
-        co2Data.shift();
+        coData.shift();
         aqiData.shift();
         tempData.shift();
         humidityData.shift();
@@ -322,9 +329,9 @@ function updateCharts() {
         series: [{ data: pm10Data }]
     });
 
-    co2Chart.setOption({
+    coChart.setOption({
         xAxis: { data: timeData },
-        series: [{ data: co2Data }]
+        series: [{ data: coData }]
     });
 }
 
@@ -332,7 +339,7 @@ function updateCharts() {
 function updateRealTimeData(data) {
     document.getElementById('pm25Value').textContent = data.pm25 ? data.pm25.toFixed(1) : '--';
     document.getElementById('pm10Value').textContent = data.pm10 ? data.pm10.toFixed(1) : '--';
-    document.getElementById('co2Value').textContent = data.co2 ? data.co2.toFixed(0) : '--';
+    document.getElementById('coValue').textContent = data.co ? data.co.toFixed(1) : '--';  // 显示 CO (一氧化碳)
     document.getElementById('aqiValue').textContent = data.aqi ? data.aqi.toFixed(0) : '--';
     document.getElementById('tempValue').textContent = data.temperature ? data.temperature.toFixed(1) : '--';
     document.getElementById('humidityValue').textContent = data.humidity ? data.humidity.toFixed(0) : '--';
@@ -384,7 +391,7 @@ function resetData() {
     timeData = [];
     pm25Data = [];
     pm10Data = [];
-    co2Data = [];
+    coData = [];
     aqiData = [];
     tempData = [];
     humidityData = [];
@@ -423,9 +430,115 @@ function formatTime(timestamp) {
     return date.toLocaleTimeString();
 }
 
+// 计算AQI（简化版本，主要基于PM2.5）
+function calculateAQI(data) {
+    const pm25 = data.pm25 || 0;
+    const pm10 = data.pm10 || 0;
+    const co = data.co || 0;
+    const no2 = data.no2 || 0;
+    const so2 = data.so2 || 0;
+    const o3 = data.o3 || 0;
+
+    // PM2.5 AQI 计算（简化）
+    let aqi = 0;
+
+    // PM2.5 AQI 计算（基于中国标准）
+    if (pm25 <= 35) {
+        aqi = Math.round((50 / 35) * pm25);
+    } else if (pm25 <= 75) {
+        aqi = Math.round(50 + (50 / 40) * (pm25 - 35));
+    } else if (pm25 <= 115) {
+        aqi = Math.round(100 + (50 / 40) * (pm25 - 75));
+    } else if (pm25 <= 150) {
+        aqi = Math.round(150 + (50 / 35) * (pm25 - 115));
+    } else if (pm25 <= 250) {
+        aqi = Math.round(200 + (100 / 100) * (pm25 - 150));
+    } else if (pm25 <= 350) {
+        aqi = Math.round(300 + (100 / 100) * (pm25 - 250));
+    } else {
+        aqi = Math.round(400 + (100 / 100) * (pm25 - 350));
+    }
+
+    // 基于其他污染物调整AQI
+    // CO (mg/m³)
+    let co_aqi = 0;
+    if (co <= 2) {
+        co_aqi = Math.round((50 / 2) * co);
+    } else if (co <= 4) {
+        co_aqi = Math.round(50 + (50 / 2) * (co - 2));
+    } else if (co <= 14) {
+        co_aqi = Math.round(100 + (50 / 10) * (co - 4));
+    } else if (co <= 24) {
+        co_aqi = Math.round(150 + (50 / 10) * (co - 14));
+    } else if (co <= 36) {
+        co_aqi = Math.round(200 + (100 / 12) * (co - 24));
+    } else if (co <= 48) {
+        co_aqi = Math.round(300 + (100 / 12) * (co - 36));
+    } else {
+        co_aqi = Math.round(400 + (100 / 12) * (co - 48));
+    }
+
+    // NO2 (µg/m³)
+    let no2_aqi = 0;
+    if (no2 <= 40) {
+        no2_aqi = Math.round((50 / 40) * no2);
+    } else if (no2 <= 80) {
+        no2_aqi = Math.round(50 + (50 / 40) * (no2 - 40));
+    } else if (no2 <= 180) {
+        no2_aqi = Math.round(100 + (50 / 100) * (no2 - 80));
+    } else if (no2 <= 280) {
+        no2_aqi = Math.round(150 + (50 / 100) * (no2 - 180));
+    } else if (no2 <= 565) {
+        no2_aqi = Math.round(200 + (100 / 285) * (no2 - 280));
+    } else if (no2 <= 750) {
+        no2_aqi = Math.round(300 + (100 / 185) * (no2 - 565));
+    } else {
+        no2_aqi = Math.round(400 + (100 / 185) * (no2 - 750));
+    }
+
+    // SO2 (µg/m³)
+    let so2_aqi = 0;
+    if (so2 <= 20) {
+        so2_aqi = Math.round((50 / 20) * so2);
+    } else if (so2 <= 150) {
+        so2_aqi = Math.round(50 + (50 / 130) * (so2 - 20));
+    } else if (so2 <= 475) {
+        so2_aqi = Math.round(100 + (50 / 325) * (so2 - 150));
+    } else if (so2 <= 800) {
+        so2_aqi = Math.round(150 + (50 / 325) * (so2 - 475));
+    } else if (so2 <= 1600) {
+        so2_aqi = Math.round(200 + (100 / 800) * (so2 - 800));
+    } else if (so2 <= 2100) {
+        so2_aqi = Math.round(300 + (100 / 500) * (so2 - 1600));
+    } else {
+        so2_aqi = Math.round(400 + (100 / 500) * (so2 - 2100));
+    }
+
+    // O3 (µg/m³)
+    let o3_aqi = 0;
+    if (o3 <= 100) {
+        o3_aqi = Math.round((50 / 100) * o3);
+    } else if (o3 <= 160) {
+        o3_aqi = Math.round(50 + (50 / 60) * (o3 - 100));
+    } else if (o3 <= 215) {
+        o3_aqi = Math.round(100 + (50 / 55) * (o3 - 160));
+    } else if (o3 <= 265) {
+        o3_aqi = Math.round(150 + (50 / 50) * (o3 - 215));
+    } else if (o3 <= 800) {
+        o3_aqi = Math.round(200 + (100 / 535) * (o3 - 265));
+    } else if (o3 <= 1000) {
+        o3_aqi = Math.round(300 + (100 / 200) * (o3 - 800));
+    } else {
+        o3_aqi = Math.round(400 + (100 / 200) * (o3 - 1000));
+    }
+
+    // 取最大值作为最终AQI
+    return Math.max(aqi, co_aqi, no2_aqi, so2_aqi, o3_aqi);
+}
+
 // 窗口大小改变时重新调整图表大小
 window.addEventListener('resize', function() {
     if (pm25Chart) pm25Chart.resize();
     if (pm10Chart) pm10Chart.resize();
-    if (co2Chart) co2Chart.resize();
+    if (coChart) coChart.resize();
 });

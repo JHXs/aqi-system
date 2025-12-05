@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试页面 - ECharts 和 WebSocket</title>
+    <script src="/static/libs/echarts.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .chart { width: 100%; height: 300px; border: 1px solid #ccc; margin: 10px 0; }
+        .status { padding: 10px; margin: 10px 0; background: #f0f0f0; }
+        button { padding: 10px 20px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 前端测试页面</h1>
+
+        <div class="status" id="status">
+            状态: 等待测试...
+        </div>
+
+        <button onclick="testECharts()">测试 ECharts</button>
+        <button onclick="testWebSocket()">测试 WebSocket</button>
+        <button onclick="testDataFlow()">测试数据流</button>
+
+        <div class="chart" id="testChart"></div>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        let chart = null;
+        let ws = null;
+
+        function setStatus(message) {
+            document.getElementById('status').textContent = '状态: ' + message;
+            console.log(message);
+        }
+
+        function addResult(message) {
+            const results = document.getElementById('results');
+            results.innerHTML += '<p>' + message + '</p>';
+            console.log(message);
+        }
+
+        function testECharts() {
+            setStatus('正在测试 ECharts...');
+
+            try {
+                chart = echarts.init(document.getElementById('testChart'));
+
+                const option = {
+                    title: { text: 'ECharts 测试图表' },
+                    tooltip: {},
+                    xAxis: { data: ['A', 'B', 'C', 'D', 'E'] },
+                    yAxis: {},
+                    series: [{ type: 'line', data: [10, 20, 30, 40, 50] }]
+                };
+
+                chart.setOption(option);
+
+                setStatus('✅ ECharts 测试成功');
+                addResult('✅ ECharts 初始化成功');
+
+            } catch (error) {
+                setStatus('❌ ECharts 测试失败');
+                addResult('❌ ECharts 错误: ' + error.message);
+                console.error('ECharts 错误:', error);
+            }
+        }
+
+        function testWebSocket() {
+            setStatus('正在测试 WebSocket...');
+
+            try {
+                ws = new WebSocket('ws://localhost:8000/ws/stream');
+
+                ws.onopen = function() {
+                    setStatus('✅ WebSocket 连接成功');
+                    addResult('✅ WebSocket 连接成功');
+
+                    // 发送播放请求
+                    fetch('/api/control/play', { method: 'POST' })
+                        .then(response => response.json())
+                        .then(data => {
+                            addResult('✅ 播放控制成功: ' + JSON.stringify(data));
+                        })
+                        .catch(error => {
+                            addResult('❌ 播放控制失败: ' + error.message);
+                        });
+                };
+
+                ws.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    addResult('✅ 收到数据: ' + JSON.stringify(data[0]));
+
+                    // 更新图表
+                    if (chart && data && data.length > 0) {
+                        const record = data[0];
+                        chart.setOption({
+                            series: [{ data: [record.pm25, record.pm10, record.co, record.temperature, record.humidity] }]
+                        });
+                    }
+                };
+
+                ws.onerror = function(error) {
+                    setStatus('❌ WebSocket 连接错误');
+                    addResult('❌ WebSocket 错误: ' + error);
+                };
+
+                ws.onclose = function() {
+                    addResult('ℹ️ WebSocket 连接已关闭');
+                };
+
+            } catch (error) {
+                setStatus('❌ WebSocket 测试失败');
+                addResult('❌ WebSocket 错误: ' + error.message);
+                console.error('WebSocket 错误:', error);
+            }
+        }
+
+        function testDataFlow() {
+            setStatus('正在测试数据流...');
+
+            fetch('/api/latest?limit=1')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.data && data.data.length > 0) {
+                        const record = data.data[0].records[0].values;
+                        addResult('✅ 数据流测试成功: ' + JSON.stringify(record));
+                        setStatus('✅ 数据流测试成功');
+                    } else {
+                        addResult('❌ 数据流测试失败: 没有数据');
+                        setStatus('❌ 数据流测试失败');
+                    }
+                })
+                .catch(error => {
+                    addResult('❌ 数据流测试失败: ' + error.message);
+                    setStatus('❌ 数据流测试失败');
+                });
+        }
+
+        // 页面加载时的测试
+        window.onload = function() {
+            setStatus('页面已加载，准备测试...');
+            addResult('ℹ️ 打开开发者工具查看详细日志');
+        };
+    </script>
+</body>
+</html>

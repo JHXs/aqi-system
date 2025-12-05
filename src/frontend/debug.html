@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>最小化调试页面</title>
+    <script src="/static/libs/echarts.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .chart { width: 100%; height: 300px; border: 1px solid #ccc; margin: 10px 0; }
+        .status { padding: 10px; margin: 10px 0; background: #f0f0f0; }
+        button { padding: 10px 20px; margin: 5px; }
+        .container { max-width: 800px; margin: 0 auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 最小化调试页面（基于 index.html）</h1>
+
+        <div class="status" id="status">
+            状态: 等待调试...
+        </div>
+
+        <button onclick="connect()">连接</button>
+        <button onclick="play()">播放</button>
+        <button onclick="pause()">暂停</button>
+        <button onclick="reset()">重置</button>
+
+        <div class="chart" id="pm25Chart"></div>
+        <div class="chart" id="pm10Chart"></div>
+        <div class="chart" id="coChart"></div>
+
+        <div class="data-grid">
+            <div class="data-item">
+                <span class="data-label">PM2.5:</span>
+                <span id="pm25Value" class="data-value">--</span>
+                <span class="data-unit">μg/m³</span>
+            </div>
+            <div class="data-item">
+                <span class="data-label">PM10:</span>
+                <span id="pm10Value" class="data-value">--</span>
+                <span class="data-unit">μg/m³</span>
+            </div>
+            <div class="data-item">
+                <span class="data-label">CO:</span>
+                <span id="coValue" class="data-value">--</span>
+                <span class="data-unit">mg/m³</span>
+            </div>
+        </div>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        // 全局变量（复制自 app.js）
+        let socket = null;
+        let isConnected = false;
+        let isPlaying = false;
+        let pm25Chart = null;
+        let pm10Chart = null;
+        let coChart = null;
+        let timeData = [];
+        let pm25Data = [];
+        let pm10Data = [];
+        let coData = [];
+        let aqiData = [];
+        let tempData = [];
+        let humidityData = [];
+        const MAX_POINTS = 100;
+
+        function setStatus(message) {
+            document.getElementById('status').textContent = '状态: ' + message;
+            console.log(message);
+        }
+
+        function addResult(message) {
+            const results = document.getElementById('results');
+            results.innerHTML += '<p>' + message + '</p>';
+            console.log(message);
+        }
+
+        // 初始化图表（复制自 app.js）
+        function initCharts() {
+            setStatus('正在初始化图表...');
+
+            try {
+                // PM2.5图表
+                pm25Chart = echarts.init(document.getElementById('pm25Chart'));
+                pm25Chart.setOption({
+                    title: { text: 'PM2.5 (μg/m³)' },
+                    tooltip: { trigger: 'axis' },
+                    xAxis: { type: 'category', boundaryGap: false, data: timeData },
+                    yAxis: { type: 'value', name: 'μg/m³' },
+                    series: [{ name: 'PM2.5', type: 'line', smooth: true, data: pm25Data }]
+                });
+
+                // PM10图表
+                pm10Chart = echarts.init(document.getElementById('pm10Chart'));
+                pm10Chart.setOption({
+                    title: { text: 'PM10 (μg/m³)' },
+                    tooltip: { trigger: 'axis' },
+                    xAxis: { type: 'category', boundaryGap: false, data: timeData },
+                    yAxis: { type: 'value', name: 'μg/m³' },
+                    series: [{ name: 'PM10', type: 'line', smooth: true, data: pm10Data }]
+                });
+
+                // CO图表
+                coChart = echarts.init(document.getElementById('coChart'));
+                coChart.setOption({
+                    title: { text: 'CO (mg/m³)' },
+                    tooltip: { trigger: 'axis' },
+                    xAxis: { type: 'category', boundaryGap: false, data: timeData },
+                    yAxis: { type: 'value', name: 'mg/m³' },
+                    series: [{ name: 'CO', type: 'line', smooth: true, data: coData }]
+                });
+
+                setStatus('✅ 图表初始化成功');
+                addResult('✅ 图表初始化成功');
+
+            } catch (error) {
+                setStatus('❌ 图表初始化失败');
+                addResult('❌ 图表初始化错误: ' + error.message);
+                console.error('图表初始化错误:', error);
+            }
+        }
+
+        // 处理接收到的数据（复制自 app.js）
+        function processData(data) {
+            if (!data || !data.timestamp) return;
+
+            try {
+                // 添加数据到数组
+                timeData.push(formatTime(data.timestamp));
+                pm25Data.push(data.pm25 || 0);
+                pm10Data.push(data.pm10 || 0);
+                coData.push(data.co || 0);
+                tempData.push(data.temperature || 0);
+                humidityData.push(data.humidity || 0);
+
+                // 限制数据点数量
+                if (timeData.length > MAX_POINTS) {
+                    timeData.shift();
+                    pm25Data.shift();
+                    pm10Data.shift();
+                    coData.shift();
+                    tempData.shift();
+                    humidityData.shift();
+                }
+
+                // 更新图表
+                updateCharts();
+
+                // 更新实时数据显示
+                updateRealTimeData(data);
+
+                addResult('✅ 处理数据: ' + JSON.stringify({
+                    timestamp: data.timestamp,
+                    pm25: data.pm25,
+                    pm10: data.pm10,
+                    co: data.co
+                }));
+
+            } catch (error) {
+                addResult('❌ 处理数据错误: ' + error.message);
+                console.error('处理数据错误:', error);
+            }
+        }
+
+        // 更新图表（复制自 app.js）
+        function updateCharts() {
+            try {
+                pm25Chart.setOption({ xAxis: { data: timeData }, series: [{ data: pm25Data }] });
+                pm10Chart.setOption({ xAxis: { data: timeData }, series: [{ data: pm10Data }] });
+                coChart.setOption({ xAxis: { data: timeData }, series: [{ data: coData }] });
+            } catch (error) {
+                addResult('❌ 更新图表错误: ' + error.message);
+                console.error('更新图表错误:', error);
+            }
+        }
+
+        // 更新实时数据显示（复制自 app.js）
+        function updateRealTimeData(data) {
+            try {
+                document.getElementById('pm25Value').textContent = data.pm25 ? data.pm25.toFixed(1) : '--';
+                document.getElementById('pm10Value').textContent = data.pm10 ? data.pm10.toFixed(1) : '--';
+                document.getElementById('coValue').textContent = data.co ? data.co.toFixed(1) : '--';
+            } catch (error) {
+                addResult('❌ 更新数据显示错误: ' + error.message);
+                console.error('更新数据显示错误:', error);
+            }
+        }
+
+        // 格式化时间显示（复制自 app.js）
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString();
+        }
+
+        // 连接WebSocket（复制自 app.js）
+        function connectWebSocket() {
+            const connectBtn = document.getElementById('connectBtn');
+            const connectionStatus = document.getElementById('connectionStatus');
+
+            if (!isConnected) {
+                try {
+                    socket = new WebSocket('ws://localhost:8000/ws/stream');
+
+                    socket.onopen = function() {
+                        isConnected = true;
+                        setStatus('✅ WebSocket 连接成功');
+                        addResult('✅ WebSocket 已连接');
+
+                        // 自动开始播放
+                        play();
+                    };
+
+                    socket.onmessage = function(event) {
+                        const data = JSON.parse(event.data);
+                        if (data && data.length > 0) {
+                            processData(data[0]);
+                        }
+                    };
+
+                    socket.onclose = function() {
+                        isConnected = false;
+                        setStatus('❌ WebSocket 已断开');
+                        addResult('❌ WebSocket 连接已关闭');
+                    };
+
+                    socket.onerror = function(error) {
+                        setStatus('❌ WebSocket 连接错误');
+                        addResult('❌ WebSocket 错误: ' + error);
+                    };
+
+                } catch (error) {
+                    setStatus('❌ 连接失败');
+                    addResult('❌ 连接错误: ' + error.message);
+                }
+            } else {
+                if (socket) {
+                    socket.close();
+                }
+            }
+        }
+
+        // 控制函数
+        function connect() {
+            connectWebSocket();
+        }
+
+        function play() {
+            if (!isConnected) {
+                addResult('❌ 请先连接 WebSocket');
+                return;
+            }
+
+            isPlaying = true;
+            fetch('/api/control/play', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    setStatus('✅ 开始播放');
+                    addResult('✅ 播放控制: ' + JSON.stringify(data));
+                })
+                .catch(error => {
+                    addResult('❌ 播放控制错误: ' + error.message);
+                });
+        }
+
+        function pause() {
+            if (!isConnected) return;
+
+            isPlaying = false;
+            fetch('/api/control/pause', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    setStatus('⏸️ 暂停播放');
+                    addResult('⏸️ 暂停控制: ' + JSON.stringify(data));
+                })
+                .catch(error => {
+                    addResult('❌ 暂停控制错误: ' + error.message);
+                });
+        }
+
+        function reset() {
+            if (!isConnected) return;
+
+            timeData = [];
+            pm25Data = [];
+            pm10Data = [];
+            coData = [];
+            tempData = [];
+            humidityData = [];
+
+            updateCharts();
+            updateRealTimeData({});
+            setStatus('🔄 数据已重置');
+
+            fetch('/api/control/reset', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    addResult('🔄 重置控制: ' + JSON.stringify(data));
+                })
+                .catch(error => {
+                    addResult('❌ 重置控制错误: ' + error.message);
+                });
+        }
+
+        // 页面加载时初始化
+        window.onload = function() {
+            initCharts();
+            setStatus('页面已加载，点击连接按钮');
+            addResult('ℹ️ 打开开发者工具查看详细日志');
+        };
+    </script>
+</body>
+</html>

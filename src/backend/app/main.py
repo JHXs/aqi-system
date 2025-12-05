@@ -97,7 +97,38 @@ async def serve_frontend():
     else:
         logger.error(f"前端文件未找到: {frontend_path}")
         return {"error": "前端文件未找到", "path": frontend_path}
+    
+@app.get("/test.html")
+async def serve_frontend():
+    """提供测试页面"""
+    # 获取frontend目录
+    frontend_path = os.path.join(FRONTEND_DIR, "test.html")
 
+    logger.info(f"尝试加载前端文件: {frontend_path}")
+
+    if os.path.exists(frontend_path):
+        with open(frontend_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return HTMLResponse(content=content)
+    else:
+        logger.error(f"前端文件未找到: {frontend_path}")
+        return {"error": "前端文件未找到", "path": frontend_path}
+
+@app.get("/debug.html")
+async def serve_frontend():
+    """提供调试页面"""
+    # 获取frontend目录
+    frontend_path = os.path.join(FRONTEND_DIR, "debug.html")
+
+    logger.info(f"尝试加载前端文件: {frontend_path}")
+
+    if os.path.exists(frontend_path):
+        with open(frontend_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return HTMLResponse(content=content)
+    else:
+        logger.error(f"前端文件未找到: {frontend_path}")
+        return {"error": "前端文件未找到", "path": frontend_path}
 
 @app.get("/api/status")
 async def get_status():
@@ -275,7 +306,7 @@ async def load_data_cache():
         logger.info("正在加载数据到缓存...")
         # 获取最近的数据，format_query_result 需要未透视的数据
         # 使用较小的限制以提高性能，我们只需要一段时间的数据
-        result = influx_manager.get_data(start_time="2015-04-28T00:00:00Z", limit=2000, sort_desc=False)  # 使用较近的开始时间，限制记录数量
+        result = influx_manager.get_data(start_time="2015-04-28T00:00:00Z", end_time="2015-05-01T00:00:00Z", station_id=1013, limit=2000, sort_desc=False)  # 使用较近的开始时间，限制记录数量
         data_cache = format_query_result(result)
         current_index = 0
         logger.info(f"成功加载 {len(data_cache)} 条数据到缓存")
